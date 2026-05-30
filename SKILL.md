@@ -16,7 +16,7 @@ Convert academic .docx reports into professional presentation decks through a pi
 
 | Task | Approach |
 |------|----------|
-| Read/extract .docx content | `pandoc input.docx -t markdown --wrap=none -o content.md` |
+| Read/extract .docx content | `pandoc input.docx -t markdown --extract-media=./media --wrap=none -o content.md` |
 | Read/extract .pptx content | `python -m markitdown presentation.pptx` |
 | Proofread with tracked changes | Unpack → edit XML → repack (see Phase 1) |
 | Create .pptx from scratch | pptxgenjs (see [pptxgenjs.md](pptxgenjs.md) for full API) |
@@ -51,23 +51,46 @@ Doc2Deck runs in four sequential phases. Never skip a phase or proceed without c
 
 ### 1.1 Read the Document
 
-Extract the full text content from the .docx file:
+Extract the full text content AND all images from the .docx file:
 
 ```bash
-pandoc input.docx -t markdown --wrap=none -o content.md
+pandoc input.docx -t markdown --extract-media=./media --wrap=none -o content.md
 ```
 
-Alternatively, for more detail on formatting and styles:
+**Note:** This pipeline uses `pandoc` without `--track-changes=all`. If the source .docx contains unreviewed tracked changes (修订痕迹), those edits will NOT be reflected in `content.md` — pandoc treats them as uncommitted changes and outputs the original text. For documents with pending revisions, first accept all changes: `python scripts/accept_changes.py input.docx clean.docx`, then use `clean.docx` as input.
 
+This produces two outputs:
+- `content.md` — full document text with image references as `![caption](media/imageN.png)`
+- `media/` — folder containing all extracted images (PNG, JPEG, EMF, WMF, etc.)
+
+**Image format note:** EMF/WMF vector graphics from .docx are extracted as-is. For PPTX compatibility, convert them to PNG:
+```bash
+python scripts/office/soffice.py --headless --convert-to png media/*.emf media/*.wmf
+```
+(This is best-effort; if `soffice` can't process a particular vector format, use the raster fallback that pandoc also extracts.)
+
+Alternatively, for plain text extraction only:
 ```bash
 pandoc input.docx -t plain --wrap=none -o content.txt
 ```
+
+**Inventory the extracted images:**
+```bash
+ls -la media/
+```
+
+For each extracted image, record:
+- **Filename** and format (PNG, JPEG, etc.)
+- **Associated caption** — the `![caption](media/imageN.png)` text from the markdown
+- **Section/context** — which heading does it appear under
+- **Type** — photograph, chart, diagram, screenshot, or table-as-image
+- **Usage decision** — full-slide image, side-by-side with text, or skip (decorative only)
 
 Read the extracted content thoroughly. Identify:
 - **Heading hierarchy** (H1 → slide title, H2 → section header, H3 → sub-point)
 - **Body paragraphs** and their length
 - **Bold/emphasized text** (key findings, numbers, terms)
-- **Image placeholders** (figure captions, "图X", "表X" references)
+- **Images** — with captions, positions, and types (see inventory above)
 - **Tables** and their structure
 
 ### 1.2 Proofread: Automatic vs. Manual Boundary
@@ -101,9 +124,15 @@ These are surface-level formatting and grammar errors. Apply them directly — d
 - Paragraph first-line indent: all body paragraphs should use consistent indentation
 - Figure/table numbering: check for gaps or duplicates
 
-All automatic corrections go directly into the tracked-changes document (see 1.3).
+All automatic corrections are identified here and will be applied to the tracked-changes document in step 1.3 alongside any user-approved content changes.
 
-#### 1.2.2 Content-Level Suggestions (User Confirmation REQUIRED)
+#### 1.2.2 Content Review & Design Style Selection (Combined User Confirmation)
+
+**This is the single user-facing checkpoint in the pipeline.** Two topics are presented together in one message. Wait for the user's complete response before proceeding to 1.3.
+
+---
+
+**PART A — Content-Level Suggestions**
 
 These go beyond surface formatting — they affect meaning, structure, or argumentation. **You MUST present these to the user and wait for explicit approval before making any changes.**
 
@@ -115,27 +144,79 @@ These go beyond surface formatting — they affect meaning, structure, or argume
 - **Terminology inconsistency** — e.g., 同一概念在全文中混用 "机器学习" / "深度学习" / "AI"
 - **Logical gaps** — e.g., "结论部分提及了方法A优于方法B，但在实验部分未见直接对比"
 
-**How to present:**
+---
+
+**PART B — Design Style Selection**
+
+If the user has already specified a color scheme or design preference (e.g., "用蓝色系", "用我们学校的红色"), honor it and skip this section. Otherwise, present the 4 academic style presets and ask the user to choose.
+
+Refer to [academic-style.md](references/academic-style.md) § "Design Style Presets" for the complete palette tables. Present a summary:
+
 ```
-## 内容建议（需确认）
+## 设计风格选择
+
+请选择幻灯片的配色风格（若未指定，将默认使用「学术深蓝」）：
+
+| # | 风格 | 主色 | 适合学科 |
+|---|------|------|----------|
+| 1 | 🟦 学术深蓝 (Academic Navy) | #1E2761 | 通用 / 论文答辩 |
+| 2 | 🟥 学府朱红 (Vermilion Scholar) | #8B1E2A | 人文社科 / 文学 / 法学 |
+| 3 | 🟩 松柏墨绿 (Forest & Ink) | #1A472A | 环境 / 生物 / 农学 |
+| 4 | 🟫 岩板灰蓝 (Slate Modern) | #2C3E50 | 工程 / 计算机 / 数据科学 |
+
+所有风格使用相同的版式布局，仅颜色不同。
+推荐：[基于论文主题给出推荐]
+你的选择：1 / 2 / 3 / 4，或自定义颜色（提供主色Hex即可）
+```
+
+**Recommendation rules:**
+- 论文答辩（通用）→ 推荐 Preset 1
+- 人文/文学/法学/历史 → 推荐 Preset 2
+- 环境/生物/农学/地理 → 推荐 Preset 3
+- 工程/计算机/数学/物理 → 推荐 Preset 4
+- 如果无法判断学科 → 推荐 Preset 1 作为安全默认
+
+---
+
+**Combined presentation format:**
+
+```
+## 内容审阅 & 设计风格确认
+
+━━━━━━━━━━━━━━━━━━━━━
+PART A — 内容修改建议
+━━━━━━━━━━━━━━━━━━━━━
 
 以下为可能影响内容表达的建议，请逐条确认是否采纳：
 
 1. **[位置/章节]** [具体问题和建议]
    - 原文：...
    - 建议：...
-   
-2. **[位置/章节]** [具体问题和建议]
-   - 原文：...
-   - 建议：...
+
+2. ...
+
+━━━━━━━━━━━━━━━━━━━━━
+PART B — 设计风格
+━━━━━━━━━━━━━━━━━━━━━
+
+[若用户已指定风格则跳过此部分]
+[若用户未指定，则展示4种风格选项，含推荐]
+
+请选择配色风格：___（1-4，或自定义颜色）
+
+━━━━━━━━━━━━━━━━━━━━━
+请一并回复以上两项。
 ```
 
-**User responses:**
-- "全部采纳" / "采纳1,3,5" / "采纳第1条和第4条" → apply approved changes
-- "都不需要" → skip all content changes
-- "第2条改成..." → apply user's alternative version
+**User response handling:**
+- Content: "全部采纳" / "采纳1,3" / "都不需要" / "第2条改成..."
+- Design: "选1" / "用第3个" / "用我们学校的蓝色 #003D7C" / (empty → default to Preset 1)
+- User can respond to both with one message
 
-**After user approves, apply the confirmed changes to the tracked-changes document alongside the automatic corrections.**
+**After receiving user's complete response:**
+1. Apply approved content changes to the tracked-changes document
+2. Record the chosen design style — this will be used in Phase 3 instead of the default Academic Navy
+3. Proceed to Phase 1.3
 
 **Never rewrite content autonomously.** If you are unsure whether something is format or content, present it to the user.
 
@@ -220,6 +301,7 @@ Based on the proofread content, create a structured slide-by-slide outline. Foll
 - One key idea per slide — if a section has more than 5 points, split it into multiple slides
 - Identify where visuals are needed: "此处建议插入[图表类型]展示[内容]"
 - Mark slides where data can be turned into charts
+- **Map source images to slides:** for every image extracted from the source .docx, decide its slide placement. The image should appear on or near the slide that discusses its content. Mark slides with the image: `📷 图X：标题 → media/imageN.png` and specify the layout (full-slide, side-by-side, or comparison grid). Skip only purely decorative images.
 
 ### 2.2 Step 1: Outline Review (First Intercept)
 
@@ -269,6 +351,7 @@ Once the outline is confirmed, expand each slide into its full content. Write a 
 - Keep each bullet to 1-2 lines
 - Extract numbers and key terms; discard verbose exposition
 - Preserve English technical terms as-is (e.g., "ResNet-50", "p < 0.01")
+- **Include source images** using markdown: `![图X：标题](media/imageN.png)`. Add a layout hint as an HTML comment on the line above: `<!-- FULL_SLIDE -->`, `<!-- SIDE_BY_SIDE -->`, or `<!-- COMPARISON_GRID -->`
 
 ### 2.4 Step 2: Draft Review (Second Intercept)
 
@@ -286,16 +369,22 @@ Wait for user confirmation. The user may edit the Markdown directly or provide v
 
 ### 3.1 Design System
 
-Use a fixed academic presentation style. Read [references/academic-style.md](references/academic-style.md) for the complete design system including color palettes, typography, and all six slide templates with implementation code.
+Use the design style that the user selected in Phase 1.2.2 (Part B). If no selection was made, default to **Preset 1: Academic Navy**.
 
-**Core palette (Academic Navy):**
-- Primary: `1E2761` (deep navy) — title slides, section headers, accent shapes
-- Secondary: `CADCFC` (ice blue) — subtle backgrounds, card fills
-- Accent: `F4A261` (warm gold) — data highlights, key numbers
-- Text: `1A1A1A` (near-black) on light backgrounds, `FFFFFF` (white) on dark backgrounds
-- Background: `FAFAFA` (off-white) for content slides, dark navy for title/conclusion
+Read [references/academic-style.md](references/academic-style.md) § "Design Style Presets" for the complete palette tables for all 4 presets. Read the rest of the file for typography, layout specifications, and slide template implementation code.
 
-**Typography:** 微软雅黑 (Microsoft YaHei) for all text — universally available on Chinese university computers.
+**Applying the user's chosen preset:** The slide template code in academic-style.md uses Academic Navy colors. When the user picks a different preset, substitute the colors systematically:
+
+| Template Reference | Replace Academic Navy | With Chosen Preset's |
+|---------------------|----------------------|---------------------|
+| `"1E2761"` | Primary (navy) | Preset's Primary |
+| `"CADCFC"` | Secondary (ice blue) | Preset's Secondary |
+| `"F4A261"` | Accent (gold) | Preset's Accent |
+| `"FAFAFA"` | Light background | Preset's Background Light |
+| `"6B7280"` | Muted text | Preset's Muted |
+| `"1A1A1A"` | Body text | Preset's Text |
+
+**Typography** remains constant across all presets: 微软雅黑 (Microsoft YaHei) for all text — universally available on Chinese university computers.
 
 ### 3.2 Generate Slides with pptxgenjs
 
@@ -312,17 +401,70 @@ pres.title = "[Presentation Title]";
 
 **Slide types to implement (see [academic-style.md](references/academic-style.md) for pixel-level specs):**
 
-**Title slide:** Full `1E2761` background, white title 40pt bold centered, `F4A261` gold accent line, subtitle 18pt in `CADCFC`, author/date in `CADCFC` 14pt.
+> **Color note:** The descriptions and code below use Academic Navy (Preset 1) colors. If the user selected a different preset in Phase 1.2.2, apply the color substitution table from § 3.1 when writing actual slide code.
 
-**Content slides:** `FAFAFA` background, left-aligned title 32pt bold in `1E2761`, body text 16pt in `1A1A1A`, `F4A261` thin underline beneath title. Bullet points with `bullet: true`. Navy footer bar with white page number 9pt.
+**Title slide:** Full primary-color background, white title 40pt bold centered, accent-color thin line, subtitle 18pt in secondary color, author/date in secondary color 14pt.
 
-**Section divider slides:** Full `1E2761` background, section number 60pt `F4A261` bold, section title 36pt `FFFFFF` bold, thin gold accent line, subtitle in `CADCFC` 16pt.
+**Content slides:** Light background, left-aligned title 32pt bold in primary color, body text 16pt in text color, accent-color thin underline beneath title. Bullet points with `bullet: true`. Primary-color footer bar with white page number 9pt.
 
-**Data callout slides:** White card-shaped `RECTANGLE` with subtle shadow, stat number 40pt `F4A261` bold, label 14pt `6B7280`. Three cards per row.
+**Section divider slides:** Full primary-color background, section number 60pt accent-color bold, section title 36pt white bold, thin accent line, subtitle in secondary color 16pt.
+
+**Data callout slides:** White card-shaped `RECTANGLE` with subtle shadow, stat number 40pt accent-color bold, label 14pt muted color. Three cards per row.
 
 **Two-column comparison:** Side-by-side white card shapes with headers, pros/cons, and use-case sections.
 
 **Conclusion slide:** Same structure as title slide but with key takeaways.
+
+**Image slide types (for images extracted from the source .docx):**
+
+These slides use images from the `media/` folder produced by pandoc in Phase 1.1. Reference [academic-style.md](references/academic-style.md) templates 7-10 for the full design specs. **Apply the color substitution table from § 3.1** — the code below uses Academic Navy defaults.
+
+**Full-slide image with caption overlay:**
+```javascript
+// Image fills most of the slide, with a primary-color caption bar at bottom
+slide.addImage({
+  path: "media/image1.png", x: 0, y: 0, w: 10, h: 4.8,
+  sizing: { type: "contain", w: 10, h: 4.8 }
+});
+// Caption bar (use chosen preset's Primary color)
+slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 4.8, w: 10, h: 0.825, fill: { color: "1E2761" } });
+slide.addText("图1：系统架构图", { x: 0.7, y: 4.8, w: 8.6, h: 0.825, fontSize: 14,
+  fontFace: "Microsoft YaHei", color: "FFFFFF", align: "left", valign: "middle" });
+```
+
+**Image + bullet points (side-by-side):**
+```javascript
+// Image on left (~55% width)
+slide.addImage({
+  path: "media/image2.png", x: 0.5, y: 1.3, w: 5.0, h: 3.5,
+  sizing: { type: "contain", w: 5.0, h: 3.5 }
+});
+// Caption below image (use chosen preset's Muted color)
+slide.addText("图2：实验结果对比", { x: 0.5, y: 4.8, w: 5.0, h: 0.3, fontSize: 11,
+  fontFace: "Microsoft YaHei", color: "6B7280", align: "center" });
+// Bullet points on right (~40% width)
+slide.addText(bulletItems, { x: 5.8, y: 1.3, w: 3.7, h: 3.5, fontSize: 16,
+  fontFace: "Microsoft YaHei", color: "1A1A1A", bullet: true, valign: "top" });
+```
+
+**Multi-image comparison (2-4 images):**
+```javascript
+const images = ["media/imgA.png", "media/imgB.png", "media/imgC.png"];
+const labels = ["方法A", "方法B", "方法C"];
+const imgW = 2.6, imgH = 2.2, gap = 0.3;
+const totalW = images.length * imgW + (images.length - 1) * gap;
+const startX = (10 - totalW) / 2;
+
+images.forEach((img, i) => {
+  const x = startX + i * (imgW + gap);
+  slide.addImage({ path: img, x, y: 1.4, w: imgW, h: imgH, sizing: { type: "contain", w: imgW, h: imgH } });
+  slide.addText(`(${String.fromCharCode(97 + i)}) ${labels[i]}`, {
+    x, y: 3.7, w: imgW, h: 0.4, fontSize: 12, fontFace: "Microsoft YaHei", color: "6B7280", align: "center"
+  });
+});
+```
+
+**Image sizing rules:** See [academic-style.md](references/academic-style.md) Template 10 for the complete sizing specification. Key principle: always use `sizing: { type: "contain", w, h }`, never stretch or distort.
 
 ### 3.3 PptxGenJS Critical Rules
 
@@ -427,17 +569,9 @@ Then use this prompt with subagents:
 
 **When to use this path:** Only when the user explicitly provides a `.pptx` file to use as a template (e.g., "use this template", school/organization branded template, or a reference presentation to match). In all other cases, use the main pipeline (Phases 1-4) with the fixed Academic Navy design system.
 
-When a reference .pptx is provided, follow the template-based workflow in [editing.md](editing.md). The template's existing design (colors, layouts, fonts) takes precedence over the Academic Navy style — adapt content to the template, not vice versa.
+When a reference .pptx is provided, follow the template-based workflow in [editing.md](editing.md). The template's existing design (colors, layouts, fonts) takes precedence — adapt content to the template, not vice versa.
 
-1. Analyze template: `python scripts/thumbnail.py template.pptx` + `python -m markitdown template.pptx`
-2. Plan slide mapping — match content to varied layouts (avoid repeating the same layout)
-3. Unpack: `python scripts/office/unpack.py template.pptx unpacked/`
-4. Build structure: delete/slide/reorder slides in `<p:sldIdLst>`, complete all structural changes first
-5. Edit content: use subagents for parallel slide editing (each slide is a separate XML file)
-6. Clean: `python scripts/clean.py unpacked/`
-7. Pack: `python scripts/office/pack.py unpacked/ output.pptx --original template.pptx`
-
-See [editing.md](editing.md) for formatting rules, common pitfalls, and XML examples.
+See [editing.md](editing.md) for the complete 7-step workflow, formatting rules, common pitfalls, and XML examples.
 
 ---
 
@@ -465,9 +599,10 @@ python scripts/office/soffice.py --headless --convert-to docx document.doc
 
 ## Key Principles
 
+- **Academic integrity over visual flashiness.** This is a binding priority rule. Defense presentations demand substance-first design — subtle, professional layouts beat loud decoration every time. When in doubt between "visually interesting" and "academically appropriate," choose the latter. This principle overrides any generic presentation advice from reference materials.
 - **Automatic vs. manual boundary is absolute.** Format/grammar fixes are auto-applied. Content changes (rewording, adding info, restructuring arguments) MUST be approved by the user first. Never cross this line.
-- **Never skip the review phases.** The two-step confirmation gives the presentation the user's unique perspective and depth.
-- **Academic integrity over visual flashiness.** Subtle, professional design beats loud decoration for defense presentations.
+- **Design style is user's choice.** When the user hasn't specified a color scheme, present curated academic style options and let the user pick. Never impose a single default without asking.
+- **Never skip the review phases.** The two-step confirmation (outline → draft) gives the presentation the user's unique perspective and depth.
 - **Chinese text needs more breathing room.** More line spacing and shorter line lengths than English.
 - **Numbers tell stories.** When you see data in the report (percentages, comparisons, trends), proactively suggest chart-based slides.
 - **One idea per slide.** If you're tempted to put 7+ bullets on a slide, split it.

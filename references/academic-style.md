@@ -4,7 +4,94 @@ Design system for Doc2Deck. Fixed academic style optimized for Chinese universit
 
 ---
 
-## Color Palette
+## Design Style Presets
+
+Doc2Deck offers four curated academic design styles. When the user hasn't specified a color scheme, present these options and let them choose before generating slides. See SKILL.md Phase 1.2.2 for the selection workflow.
+
+### Preset 1: 学术深蓝 (Academic Navy) — DEFAULT
+
+The classic thesis defense look. Authoritative, formal, universally appropriate for all disciplines.
+
+| Role | Hex | Usage |
+|------|-----|-------|
+| Primary | `1E2761` | Title slides, section headers, footer bars |
+| Secondary | `CADCFC` | Card backgrounds, subtle fills |
+| Accent | `F4A261` | Key numbers, data highlights, title underline |
+| Text | `1A1A1A` | Body text on light backgrounds |
+| Muted | `6B7280` | Captions, footnotes, secondary info |
+| Background Light | `FAFAFA` | Content slide backgrounds |
+| Background Dark | `1E2761` | Title/section divider/conclusion backgrounds |
+
+Best for: Thesis defense (论文答辩), general academic reports, interdisciplinary research.
+
+---
+
+### Preset 2: 学府朱红 (Vermilion Scholar)
+
+Warm, traditional, carries the gravitas of Chinese classical academia. Evokes university seals and traditional architecture.
+
+| Role | Hex | Usage |
+|------|-----|-------|
+| Primary | `8B1E2A` | Title slides, section headers, footer bars |
+| Secondary | `F5E0D5` | Card backgrounds, subtle fills |
+| Accent | `D4A574` | Key numbers, data highlights, title underline |
+| Text | `1A1A1A` | Body text on light backgrounds |
+| Muted | `7B6B6B` | Captions, footnotes, secondary info |
+| Background Light | `FEFAF6` | Content slide backgrounds (warm white) |
+| Background Dark | `8B1E2A` | Title/section divider/conclusion backgrounds |
+
+Best for: Humanities (人文社科), literature, history, law, philosophy, traditional Chinese studies (国学).
+
+---
+
+### Preset 3: 松柏墨绿 (Forest & Ink)
+
+Fresh, grounded, natural. Signals rigor without the formality of navy — ideal for field research and data-rich presentations.
+
+| Role | Hex | Usage |
+|------|-----|-------|
+| Primary | `1A472A` | Title slides, section headers, footer bars |
+| Secondary | `DCE8D5` | Card backgrounds, subtle fills |
+| Accent | `C49A3C` | Key numbers, data highlights, title underline |
+| Text | `1A1A1A` | Body text on light backgrounds |
+| Muted | `5A6B5A` | Captions, footnotes, secondary info |
+| Background Light | `F7FAF5` | Content slide backgrounds (cool white) |
+| Background Dark | `1A472A` | Title/section divider/conclusion backgrounds |
+
+Best for: Environmental science (环境科学), biology (生物), agriculture (农学), geography, sustainability research.
+
+---
+
+### Preset 4: 岩板灰蓝 (Slate Modern)
+
+Minimal, technical, contemporary. Stripped-back aesthetic for data-driven, engineering, and computational work.
+
+| Role | Hex | Usage |
+|------|-----|-------|
+| Primary | `2C3E50` | Title slides, section headers, footer bars |
+| Secondary | `D6DBDF` | Card backgrounds, subtle fills |
+| Accent | `E67E22` | Key numbers, data highlights, title underline |
+| Text | `1A1A1A` | Body text on light backgrounds |
+| Muted | `7F8C8D` | Captions, footnotes, secondary info |
+| Background Light | `F8F9FA` | Content slide backgrounds (neutral white) |
+| Background Dark | `2C3E50` | Title/section divider/conclusion backgrounds |
+
+Best for: Engineering (工程), computer science (计算机), data science, mathematics, physics.
+
+---
+
+### Choosing a Preset
+
+- **No user preference → Default to Preset 1 (Academic Navy).** State that it's the default and ask if they'd prefer another.
+- **User mentions discipline** (e.g., "我的论文是文学方向的") → recommend the matching preset.
+- **User provides own colors** → use those instead, ignore presets.
+- **All presets share the same typography, layout templates, and spacing** — only the color palette changes. This means all template code in this style guide works with any preset by swapping the color values.
+
+---
+
+## Color Palette (Academic Navy — Default)
+
+This is the detailed specification for Preset 1. For other presets, apply the same patterns with their respective color tables above.
 
 ### Primary: Academic Navy
 
@@ -142,7 +229,11 @@ Implementation:
 slide.background = { color: "FAFAFA" };
 // Title
 slide.addText("页面标题", { x: 0.7, y: 0.3, w: 8.6, h: 0.7, fontSize: 32, fontFace: "Microsoft YaHei", color: "1E2761", bold: true, margin: 0 });
-// Thin underline below title
+// Thin accent underline below title
+// NOTE: This is a deliberate academic convention (论文答辩PPT标准), NOT the generic
+// "AI-generated accent line" anti-pattern. In Chinese academic defense presentations,
+// a thin colored rule under the title signals formality and separates the title zone
+// from body content — it serves a layout function, not mere decoration.
 slide.addShape(pres.shapes.RECTANGLE, { x: 0.7, y: 0.95, w: 2, h: 0.04, fill: { color: "F4A261" } });
 // Bullet points
 slide.addText(bulletItems, { x: 0.9, y: 1.3, w: 8.2, h: 3.5, fontSize: 16, fontFace: "Microsoft YaHei", color: "1A1A1A" });
@@ -217,6 +308,120 @@ Same structure as title slide but with:
 - "总结与展望" or "结论" as the title
 - 3-4 key takeaways as bold bullet items
 - "感谢聆听 | Q&A" at the bottom
+
+---
+
+### 7. Full-Slide Image with Caption
+
+```
+┌──────────────────────────────────┐
+│                                  │
+│          [source image]          │
+│          (contain fit)           │
+│                                  │
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │ ← navy caption bar
+│ 图1：系统架构图 (14pt white)      │
+└──────────────────────────────────┘
+```
+
+Implementation:
+```javascript
+// Image fills the slide area above the caption bar
+slide.addImage({
+  path: "media/image1.png",
+  x: 0, y: 0, w: 10, h: 4.8,
+  sizing: { type: "contain", w: 10, h: 4.8 }
+});
+// Caption overlay bar at bottom
+slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 4.8, w: 10, h: 0.825, fill: { color: "1E2761" } });
+slide.addText("图1：系统架构图", {
+  x: 0.7, y: 4.8, w: 8.6, h: 0.825,
+  fontSize: 14, fontFace: "Microsoft YaHei", color: "FFFFFF", align: "left", valign: "middle"
+});
+```
+
+Use when: a diagram, photo, or chart from the source document deserves its own slide and the visual speaks for itself.
+
+### 8. Image + Bullet Points (Side-by-Side)
+
+```
+┌──────────────────────────────────┐
+│ 页面标题 (32pt bold navy)         │
+│                                  │
+│ ┌──────────────┐  ● 要点一       │
+│ │              │  ● 要点二       │
+│ │  source      │  ● 要点三       │
+│ │  image       │  ● 要点四       │
+│ │              │                 │
+│ └──────────────┘                 │
+│ 图X：标题 (12pt muted)            │
+└──────────────────────────────────┘
+```
+
+Implementation:
+```javascript
+slide.background = { color: "FAFAFA" };
+// Title
+slide.addText("页面标题", { x: 0.7, y: 0.3, w: 8.6, h: 0.7, fontSize: 32, fontFace: "Microsoft YaHei", color: "1E2761", bold: true, margin: 0 });
+slide.addShape(pres.shapes.RECTANGLE, { x: 0.7, y: 0.95, w: 2, h: 0.04, fill: { color: "F4A261" } });
+// Image on left (~55% width)
+slide.addImage({
+  path: "media/image2.png",
+  x: 0.5, y: 1.3, w: 5.0, h: 3.5,
+  sizing: { type: "contain", w: 5.0, h: 3.5 }
+});
+// Image caption below
+slide.addText("图2：实验结果对比", { x: 0.5, y: 4.8, w: 5.0, h: 0.3, fontSize: 11, fontFace: "Microsoft YaHei", color: "6B7280", align: "center" });
+// Bullet points on right (~40% width)
+slide.addText(bulletItems, { x: 5.8, y: 1.3, w: 3.7, h: 3.5, fontSize: 16, fontFace: "Microsoft YaHei", color: "1A1A1A", bullet: true, valign: "top" });
+// Footer
+slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: "1E2761" } });
+slide.addText("N / total", { x: 0.5, y: 5.2, w: 1, h: 0.425, fontSize: 9, fontFace: "Microsoft YaHei", color: "FFFFFF", align: "center" });
+```
+
+Use when: an image illustrates the point but needs accompanying explanation or the slide covers multiple facets of a topic.
+
+### 9. Multi-Image Comparison (2-4 Images)
+
+```
+┌──────────────────────────────────┐
+│ 对比分析 (32pt bold navy)         │
+│                                  │
+│ ┌──────────┐ ┌──────────┐ ┌────┐│
+│ │  Image A │ │  Image B │ │ Im ││
+│ │          │ │          │ │ C  ││
+│ └──────────┘ └──────────┘ └────┘│
+│  (a) 方法A   (b) 方法B   (c) 方法C│
+└──────────────────────────────────┘
+```
+
+Implementation:
+```javascript
+const images = ["media/imgA.png", "media/imgB.png", "media/imgC.png"];
+const labels = ["方法A", "方法B", "方法C"];
+const imgW = 2.6, imgH = 2.2, gap = 0.3, totalW = images.length * imgW + (images.length - 1) * gap;
+const startX = (10 - totalW) / 2;
+
+images.forEach((img, i) => {
+  const x = startX + i * (imgW + gap);
+  slide.addImage({ path: img, x, y: 1.4, w: imgW, h: imgH, sizing: { type: "contain", w: imgW, h: imgH } });
+  slide.addText(`(${String.fromCharCode(97 + i)}) ${labels[i]}`, {
+    x, y: 3.7, w: imgW, h: 0.4, fontSize: 12, fontFace: "Microsoft YaHei", color: "6B7280", align: "center"
+  });
+});
+```
+
+Use when: comparing results visually (before/after, method A vs B vs C, different parameter settings). 2-4 images maximum — more than 4 requires a dedicated appendix or splitting across slides.
+
+### 10. Image Sizing Rules
+
+- **Always preserve aspect ratio** — use `sizing: { type: "contain", w, h }`. Never set explicit `w` and `h` that would stretch an image.
+- **Calculate precise fit** when needed: read the image dimensions, compute proportional width/height (see [pptxgenjs.md](../pptxgenjs.md) § "Calculate Dimensions").
+- **Full-slide images**: fill available width, let height follow proportionally; add caption bar below.
+- **Side-by-side images**: image takes 50-60% width, text the rest. Center vertically relative to text block.
+- **Comparison grid**: equal-sized image slots, evenly distributed across the slide width, centered as a group.
+- **Minimum resolution**: 1920×1080px for full-slide (150 DPI at 10"×5.6"). Images below 500px wide should not span more than half the slide.
+- **Caption every image**: use the original figure caption from the source document. Place below the image in `6B7280` 11-12pt.
 
 ---
 
